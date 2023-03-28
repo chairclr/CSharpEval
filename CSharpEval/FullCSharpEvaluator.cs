@@ -1,7 +1,15 @@
-﻿using System.Collections.Immutable;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpEval;
 
@@ -86,7 +94,6 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
                 ScriptEnvironment.Dispose();
             }
 
-            ScriptEnvironment = null;
             Disposed = true;
         }
     }

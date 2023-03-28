@@ -123,8 +123,6 @@ public class FullScriptEnvironment : IDisposable
                 AssemblyLoader.Dispose();
             }
 
-            ScriptState = null;
-
             Disposed = true;
         }
     }
