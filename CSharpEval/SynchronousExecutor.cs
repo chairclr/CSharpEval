@@ -2,7 +2,7 @@
 
 namespace CSharpEval;
 
-public static class SynchronousExecutor
+internal static class SynchronousExecutor
 {
     public static void Run(Func<Task> task)
     {
