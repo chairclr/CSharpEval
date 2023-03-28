@@ -28,7 +28,7 @@ public class FullScriptEnvironment : IDisposable
 
     private Project ScriptProject;
 
-    private Document ScriptDocument;
+    public Document ScriptDocument;
 
     private bool Disposed;
 
@@ -36,25 +36,11 @@ public class FullScriptEnvironment : IDisposable
     public FullScriptEnvironment(IEnumerable<Assembly> assemblyImports, IEnumerable<string> usings)
 #pragma warning restore CS8618
     {
-        CompositionHost = new ContainerConfiguration().WithAssemblies(assemblyImports.Concat(MefHostServices.DefaultAssemblies)).CreateContainer();
-
-        ScriptHost = new MefHostServices(CompositionHost);
-
-        ScriptWorkspace = new AdhocWorkspace(ScriptHost);
-
         IEnumerable<PortableExecutableReference> metadataReferences = assemblyImports.Select(x => ReferenceProvider.GetBestPEReference(x));
 
-        ProjectInfo scriptProjectInfo = ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Default, "ScriptProject", "Script", LanguageNames.CSharp)
-            .WithMetadataReferences(metadataReferences)
-            .WithParseOptions(new CSharpParseOptions(LanguageVersion.Latest, kind: SourceCodeKind.Script));
-
-        ScriptProject = ScriptWorkspace.AddProject(scriptProjectInfo);
-
-        Update("");
-
         ScriptOptions scriptOptions = ScriptOptions.Default
-            .AddReferences(metadataReferences)
-            .AddImports(usings);
+           .AddReferences(metadataReferences)
+           .AddImports(usings);
 
         AssemblyLoader = new InteractiveAssemblyLoader();
 
@@ -64,6 +50,21 @@ public class FullScriptEnvironment : IDisposable
         }
 
         ScriptState = CSharpScript.Create("", scriptOptions, assemblyLoader: AssemblyLoader).RunAsync().Result;
+
+        CompositionHost = new ContainerConfiguration().WithAssemblies(assemblyImports.Concat(MefHostServices.DefaultAssemblies)).CreateContainer();
+
+        ScriptHost = new MefHostServices(CompositionHost);
+
+        ScriptWorkspace = new AdhocWorkspace(ScriptHost);
+
+        ProjectInfo scriptProjectInfo = ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Default, "ScriptProject", "Script", LanguageNames.CSharp)
+            .WithMetadataReferences(metadataReferences)
+            .WithParseOptions(new CSharpParseOptions(LanguageVersion.Latest, kind: SourceCodeKind.Script))
+            .WithCompilationOptions(ScriptState.Script.GetCompilation().Options);
+
+        ScriptProject = ScriptWorkspace.AddProject(scriptProjectInfo);
+
+        Update("");
     }
 
     public void Update(string source) => Update(SourceText.From(source));
@@ -73,6 +74,24 @@ public class FullScriptEnvironment : IDisposable
         UpdateUsingsWithSource(source);
 
         ScriptDocument = ScriptProject.AddDocument("Script", source);
+
+        DocumentId scriptDocumentId = ScriptDocument.Id;
+
+        if (!ScriptWorkspace.TryApplyChanges(ScriptDocument.Project.Solution))
+        {
+            throw new Exception("Could not apply changes.");
+        }
+
+        ScriptDocument = ScriptSolution.GetDocument(scriptDocumentId)!;
+
+        ScriptProject = ScriptDocument.Project;
+    }
+
+    public void UpdateTextOnly(string source) => UpdateTextOnly(SourceText.From(source));
+
+    public void UpdateTextOnly(SourceText source)
+    {
+        ScriptDocument = ScriptDocument.WithText(source);
 
         DocumentId scriptDocumentId = ScriptDocument.Id;
 
