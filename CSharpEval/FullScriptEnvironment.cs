@@ -28,7 +28,7 @@ public class FullScriptEnvironment : IDisposable
 
     private Project ScriptProject;
 
-    public Document ScriptDocument;
+    public Document ScriptDocument { get; private set; }
 
     private bool Disposed;
 
@@ -113,9 +113,10 @@ public class FullScriptEnvironment : IDisposable
 
         ScriptDocument = ScriptProject.AddDocument("Script", source);
 
-        if (ScriptDocument.TryGetSyntaxTree(out SyntaxTree? syntaxTree))
+        SyntaxNode? rootNode = ScriptDocument.GetSyntaxRootAsync().Result;
+        if (rootNode is not null)
         {
-            foreach (UsingDirectiveSyntax usingSyntax in syntaxTree.GetRoot().DescendantNodes().Where(x => x is UsingDirectiveSyntax).Cast<UsingDirectiveSyntax>())
+            foreach (UsingDirectiveSyntax usingSyntax in rootNode.DescendantNodes().Where(x => x is UsingDirectiveSyntax).Cast<UsingDirectiveSyntax>())
             {
                 string import = usingSyntax.Name.ToString();
 

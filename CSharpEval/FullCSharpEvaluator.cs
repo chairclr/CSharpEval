@@ -1,18 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
+﻿using System.Collections.Immutable;
 using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.Scripting;
-using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpEval;
-
 
 public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
 {
@@ -83,6 +75,82 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
         {
             return new ScriptEvaluationResult(null, diagnostics, ex);
         }
+    }
+
+    public async Task<ImmutableArray<CompletionItem>> GetCompletionsAsync(string source, int caretPosition, CompletionTrigger completionTrigger, CancellationToken cancellationToken = default)
+    {
+        ScriptEnvironment.UpdateTextOnly(source);
+
+        CompletionService? completionService = CompletionService.GetService(ScriptEnvironment.ScriptDocument);
+
+        if (completionService is null)
+        {
+            return ImmutableArray<CompletionItem>.Empty;
+        }
+
+        if (!ShouldTriggerCompletion(completionTrigger))
+        {
+            return ImmutableArray<CompletionItem>.Empty;
+        }
+
+        CompletionList completions = await completionService.GetCompletionsAsync(ScriptEnvironment.ScriptDocument, caretPosition, trigger: default, cancellationToken: cancellationToken);
+
+        if (completions.Span.Length == 0)
+        {
+            return ImmutableArray<CompletionItem>.Empty;
+        }
+
+        return completionService.FilterItems(ScriptEnvironment.ScriptDocument, completions.ItemsList.ToImmutableArray(), source.Substring(completions.Span.Start, completions.Span.Length));
+    }
+
+    private bool ShouldTriggerCompletion(CompletionTrigger completionTrigger)
+    {
+        if (completionTrigger.Kind == CompletionTriggerKind.Insertion || completionTrigger.Kind == CompletionTriggerKind.Deletion)
+        {
+            if (char.IsLetterOrDigit(completionTrigger.Character) || completionTrigger.Character == '.')
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Applies a completion item to the source text
+    /// </summary>
+    /// <param name="source">Source code/text</param>
+    /// <param name="commitCharacter">The character added to trigger the completion. This is null when the [TAB] or [ENTER] keys were used</param>
+    /// <returns>New source code, new caret position</returns>
+    public async Task<(string, int)> ApplyCompletionAsync(string source, CompletionItem item, int caretPosition, char? commitCharacter)
+    {
+        ScriptEnvironment.UpdateTextOnly(source);
+
+        CompletionService? completionService = CompletionService.GetService(ScriptEnvironment.ScriptDocument);
+
+        if (completionService is null) 
+        {
+            return (source, caretPosition);
+        }
+
+        CompletionChange change = await completionService.GetChangeAsync(ScriptEnvironment.ScriptDocument, item, commitCharacter);
+
+        string insertedText = change.TextChange.NewText ?? "";
+
+        string newSource = source.Remove(change.TextChange.Span.Start, change.TextChange.Span.Length).Insert(change.TextChange.Span.Start, insertedText);
+
+        int newCaretPosition;
+
+        if (change.NewPosition.HasValue)
+        {
+            newCaretPosition = change.NewPosition.Value;
+        }
+        else
+        {
+            newCaretPosition = caretPosition + insertedText.Length - change.TextChange.Span.Length;
+        }
+
+        return (newSource, newCaretPosition);
     }
 
     protected virtual void Dispose(bool disposing)

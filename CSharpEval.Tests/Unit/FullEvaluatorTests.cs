@@ -1,5 +1,7 @@
-﻿using System.Reflection;
+﻿using System.Collections.Immutable;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Completion;
 
 namespace CSharpEval.Tests.Unit;
 
@@ -55,7 +57,7 @@ public class FullEvaluatorTests
         {
             Assert.That(result.Result, Is.Null);
             Assert.That(result.Exception, Is.Null);
-            Assert.That(result.Diagnostics[0].Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            Assert.That(result.Diagnostics.First().Severity, Is.EqualTo(DiagnosticSeverity.Error));
         });
     }
 
@@ -70,5 +72,68 @@ public class FullEvaluatorTests
                       """;
 
         Assert.That((int)evaluator.Eval(code).Result!, Is.EqualTo(Environment.CurrentManagedThreadId));
+    }
+
+    [TestCase("Consol", 6, 'l', ExpectedResult = "Console")]
+    [TestCase("for (int i = 0; i < 5; i++) { Console.WriteLi }", 45, 'r', ExpectedResult = "WriteLine")]
+    public string TestBasicInsertionCompletion(string code, int caretPosition, char insertedCharacter)
+    {
+        using FullCSharpEvaluator evaluator = new FullCSharpEvaluator(new Assembly[] { typeof(Console).Assembly }, new string[] { "System" });
+
+        ImmutableArray<CompletionItem> completions = evaluator.GetCompletionsAsync(code, caretPosition, CompletionTrigger.CreateInsertionTrigger(insertedCharacter)).Result;
+
+        return completions.First().DisplayText;
+    }
+
+    [Test]
+    public void TestImportStaticCompletion()
+    {
+        using FullCSharpEvaluator evaluator = new FullCSharpEvaluator(new Assembly[] { AssemblyProvider.StaticAssembly }, new string[] { "StaticTestAssembly" });
+
+        ImmutableArray<CompletionItem> completions = evaluator.GetCompletionsAsync("StaticExportsCla", 16, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completions.First().DisplayText, Is.EqualTo("StaticExportsClass"));
+    }
+
+    [Test]
+    public void TestUsingAfterCreationStaticCompletion()
+    {
+        using FullCSharpEvaluator evaluator = new FullCSharpEvaluator(new Assembly[] { AssemblyProvider.StaticAssembly }, new string[] {  });
+
+        ImmutableArray<CompletionItem> completions = evaluator.GetCompletionsAsync("StaticExportsCla", 16, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completions.IsEmpty);
+
+        evaluator.Eval("using StaticTestAssembly;").FailIfErrors();
+
+        ImmutableArray<CompletionItem> completionsAfterUsing = evaluator.GetCompletionsAsync("StaticExportsCla", 16, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completionsAfterUsing.First().DisplayText, Is.EqualTo("StaticExportsClass"));
+    }
+
+    [Test]
+    public void TestImportDynamicCompletion()
+    {
+        using FullCSharpEvaluator evaluator = new FullCSharpEvaluator(new Assembly[] { AssemblyProvider.DynamicAssembly }, new string[] { "DynamicTestAssembly" });
+
+        ImmutableArray<CompletionItem> completions = evaluator.GetCompletionsAsync("DynamicExportsCla", 17, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completions.First().DisplayText, Is.EqualTo("DynamicExportsClass"));
+    }
+
+    [Test]
+    public void TestUsingAfterCreationDynamicCompletion()
+    {
+        using FullCSharpEvaluator evaluator = new FullCSharpEvaluator(new Assembly[] { AssemblyProvider.DynamicAssembly }, new string[] {  });
+
+        ImmutableArray<CompletionItem> completions = evaluator.GetCompletionsAsync("DynamicExportsCla", 17, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completions.IsEmpty);
+
+        evaluator.Eval("using DynamicTestAssembly;").FailIfErrors();
+
+        ImmutableArray<CompletionItem> completionsAfterUsing = evaluator.GetCompletionsAsync("DynamicExportsCla", 17, CompletionTrigger.CreateInsertionTrigger('a')).Result;
+
+        Assert.That(completionsAfterUsing.First().DisplayText, Is.EqualTo("DynamicExportsClass"));
     }
 }
