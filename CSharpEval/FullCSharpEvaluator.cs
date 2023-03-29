@@ -1,7 +1,9 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Scripting;
 
 namespace CSharpEval;
@@ -175,6 +177,73 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
         }
 
         return (newSource, newCaretPosition);
+    }
+
+    public async Task<ImmutableArray<string>> GetSymbolArgumentsAsync(string source, int caretPosition)
+    {
+        return await Task.Run(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return ImmutableArray<string>.Empty;
+            }
+
+            SyntaxNode? rootNode = await ScriptEnvironment.ScriptDocument.GetSyntaxRootAsync();
+
+            if (rootNode is null)
+            {
+                return ImmutableArray<string>.Empty;
+            }
+
+            SemanticModel? semanticModel = await ScriptEnvironment.ScriptDocument.GetSemanticModelAsync();
+
+            if (semanticModel is null)
+            {
+                return ImmutableArray<string>.Empty;
+            }
+
+            SyntaxNode? FindParentArgumentList(SyntaxNode? node)
+            {
+                SyntaxNode? workingNode = node;
+                while (workingNode is not null)
+                {
+                    if (workingNode is ArgumentListSyntax)
+                    {
+                        return workingNode;
+                    }
+                    workingNode = workingNode.Parent;
+                }
+
+                return null;
+            }
+
+            SyntaxToken tokenAtCursor = rootNode.FindToken(Math.Max(caretPosition - 1, 0));
+
+            SyntaxNode? argumentList = FindParentArgumentList(tokenAtCursor.Parent);
+
+            if (argumentList is null || argumentList.Parent is null)
+            {
+                return ImmutableArray<string>.Empty;
+            }
+
+            SymbolInfo info = semanticModel.GetSymbolInfo(argumentList.Parent);
+
+            List<string> candidates = new List<string>(info.CandidateSymbols.Length);
+
+            if (info.Symbol is not null)
+            {
+                candidates.Add(info.Symbol.ToMinimalDisplayString(semanticModel, caretPosition));
+                return candidates.ToImmutableArray();
+            }
+
+            for (int i = 0; i < info.CandidateSymbols.Length; i++)
+            {
+                ISymbol symbol = info.CandidateSymbols[i];
+                candidates.Add(symbol.ToMinimalDisplayString(semanticModel, caretPosition));
+            }
+
+            return candidates.ToImmutableArray();
+        });
     }
 
     protected virtual void Dispose(bool disposing)
