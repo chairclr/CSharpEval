@@ -21,7 +21,7 @@ BasicCSharpEvaluator evaluator = new BasicCSharpEvaluator(Enumerable.Empty<Assem
 evaluator.Eval("int x = 47;");
 evaluator.Eval("int y = 3;");
 
-Console.WriteLine(evaluator.Eval("(x + y) / 2").Result); // Prints 26
+Console.WriteLine(evaluator.Eval("(x + y) / 2").Result); // Prints 25
 ```
 
 <h3>
