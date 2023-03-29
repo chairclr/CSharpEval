@@ -100,7 +100,11 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
             return ImmutableArray<CompletionItem>.Empty;
         }
 
-        return completionService.FilterItems(ScriptEnvironment.ScriptDocument, completions.ItemsList.ToImmutableArray(), source.Substring(completions.Span.Start, completions.Span.Length));
+        string filterText = source.Substring(completions.Span.Start, completions.Span.Length);
+
+        ImmutableArray<CompletionItem> filteredItems = completionService.FilterItems(ScriptEnvironment.ScriptDocument, completions.ItemsList.ToImmutableArray(), filterText);
+
+        return filteredItems.Sort((x, y) => CompareCompletionItems(filterText, x, y));
     }
 
     private bool ShouldTriggerCompletion(CompletionTrigger completionTrigger)
@@ -114,6 +118,21 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
         }
 
         return false;
+    }
+
+    private int CompareCompletionItems(string filterText, CompletionItem x, CompletionItem y)
+    {
+        if (filterText == x.SortText)
+        {
+            return 1;
+        }
+
+        int MinimumDistance(CompletionItem item)
+        {
+            return StringCompare.StringDistance(filterText, item.SortText);
+        }
+
+        return MinimumDistance(x).CompareTo(MinimumDistance(y));
     }
 
     /// <summary>
