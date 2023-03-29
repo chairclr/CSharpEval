@@ -79,6 +79,11 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
 
     public async Task<ImmutableArray<CompletionItem>> GetCompletionsAsync(string source, int caretPosition, CompletionTrigger completionTrigger, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrEmpty(source))
+        {
+            return ImmutableArray<CompletionItem>.Empty;
+        }
+            
         ScriptEnvironment.UpdateTextOnly(source);
 
         CompletionService? completionService = CompletionService.GetService(ScriptEnvironment.ScriptDocument);
@@ -97,7 +102,7 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
 
         if (completions.Span.Length == 0)
         {
-            return ImmutableArray<CompletionItem>.Empty;
+            return completions.ItemsList.ToImmutableArray();
         }
 
         string filterText = source.Substring(completions.Span.Start, completions.Span.Length);
