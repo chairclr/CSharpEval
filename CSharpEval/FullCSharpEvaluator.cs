@@ -116,6 +116,11 @@ public class FullCSharpEvaluator : ICSharpEvaluator, IDisposable
 
     private bool ShouldTriggerCompletion(CompletionTrigger completionTrigger)
     {
+        if (completionTrigger.Kind == CompletionTriggerKind.Invoke)
+        {
+            return true;
+        }
+
         if (completionTrigger.Kind == CompletionTriggerKind.Insertion || completionTrigger.Kind == CompletionTriggerKind.Deletion)
         {
             if (char.IsLetterOrDigit(completionTrigger.Character) || completionTrigger.Character == '.')
