@@ -30,6 +30,8 @@ public class FullScriptEnvironment : IDisposable
 
     public Document ScriptDocument { get; private set; }
 
+    private object ApplyChangesLock = new object();
+
     private bool Disposed;
 
 #pragma warning disable CS8618 // False-positive, Update("") will set ScriptDocument to non-null value
@@ -71,38 +73,44 @@ public class FullScriptEnvironment : IDisposable
 
     public void Update(SourceText source)
     {
-        UpdateUsingsWithSource(source);
-
-        ScriptDocument = ScriptProject.AddDocument("Script", source);
-
-        DocumentId scriptDocumentId = ScriptDocument.Id;
-
-        if (!ScriptWorkspace.TryApplyChanges(ScriptDocument.Project.Solution))
+        lock (ApplyChangesLock)
         {
-            throw new Exception("Could not apply changes.");
+            UpdateUsingsWithSource(source);
+
+            ScriptDocument = ScriptProject.AddDocument("Script", source);
+
+            DocumentId scriptDocumentId = ScriptDocument.Id;
+
+            if (!ScriptWorkspace.TryApplyChanges(ScriptDocument.Project.Solution))
+            {
+                throw new Exception("Could not apply changes.");
+            }
+
+            ScriptDocument = ScriptSolution.GetDocument(scriptDocumentId)!;
+
+            ScriptProject = ScriptDocument.Project;
         }
-
-        ScriptDocument = ScriptSolution.GetDocument(scriptDocumentId)!;
-
-        ScriptProject = ScriptDocument.Project;
     }
 
     public void UpdateTextOnly(string source) => UpdateTextOnly(SourceText.From(source));
 
     public void UpdateTextOnly(SourceText source)
     {
-        ScriptDocument = ScriptDocument.WithText(source);
-
-        DocumentId scriptDocumentId = ScriptDocument.Id;
-
-        if (!ScriptWorkspace.TryApplyChanges(ScriptDocument.Project.Solution))
+        lock (ApplyChangesLock)
         {
-            throw new Exception("Could not apply changes.");
+            ScriptDocument = ScriptDocument.WithText(source);
+
+            DocumentId scriptDocumentId = ScriptDocument.Id;
+
+            if (!ScriptWorkspace.TryApplyChanges(ScriptDocument.Project.Solution))
+            {
+                throw new Exception("Could not apply changes.");
+            }
+
+            ScriptDocument = ScriptSolution.GetDocument(scriptDocumentId)!;
+
+            ScriptProject = ScriptDocument.Project;
         }
-
-        ScriptDocument = ScriptSolution.GetDocument(scriptDocumentId)!;
-
-        ScriptProject = ScriptDocument.Project;
     }
 
     private void UpdateUsingsWithSource(SourceText source)
