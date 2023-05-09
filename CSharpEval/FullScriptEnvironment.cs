@@ -38,7 +38,7 @@ public class FullScriptEnvironment : IDisposable
     public FullScriptEnvironment(IEnumerable<Assembly> assemblyImports, IEnumerable<string> usings)
 #pragma warning restore CS8618
     {
-        IEnumerable<PortableExecutableReference> metadataReferences = assemblyImports.Select(x => ReferenceProvider.GetBestPEReference(x));
+        IEnumerable<PortableExecutableReference> metadataReferences = assemblyImports.Select(x => ReferenceProvider.GetBestPEReference(x)).Where(x => x is not null);
 
         ScriptOptions scriptOptions = ScriptOptions.Default
            .AddReferences(metadataReferences)
@@ -53,8 +53,8 @@ public class FullScriptEnvironment : IDisposable
 
         ScriptState = CSharpScript.Create("", scriptOptions, assemblyLoader: AssemblyLoader).RunAsync().Result;
 
-        CompositionHost = new ContainerConfiguration().WithAssemblies(assemblyImports.Concat(MefHostServices.DefaultAssemblies)).CreateContainer();
-
+        CompositionHost = new ContainerConfiguration().WithAssemblies(assemblyImports.Concat(MefHostServices.DefaultAssemblies).Distinct()).CreateContainer();
+        
         ScriptHost = new MefHostServices(CompositionHost);
 
         ScriptWorkspace = new AdhocWorkspace(ScriptHost);
